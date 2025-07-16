@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Button } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 
-const EMOJIS = ['🐶', '🐱', '🦊', '🐻', '🐼', '🐸', '🦁', '🐵'];
+const MIN_PAIRS = 2;
+const MAX_PAIRS = 12;
+const DEFAULT_PAIRS = 8;
+const EMOJIS = ['🐶', '🐱', '🦊', '🐻', '🐼', '🐸', '🦁', '🐵', '🐯', '🐨', '🦄', '🐙', '🐰', '🦉', '🐢', '🐞', '🦋', '🐳', '🦓'];
 
 function shuffle(array) {
   let arr = array.slice();
@@ -13,8 +17,9 @@ function shuffle(array) {
   return arr;
 }
 
-function createShuffledDeck() {
-  const deck = shuffle([...EMOJIS, ...EMOJIS]).map((emoji, idx) => ({
+function createShuffledDeck(pairNumbers) {
+  const chosen = shuffle(EMOJIS).slice(0, pairNumbers);
+  const deck = shuffle([...chosen, ...chosen]).map((emoji, idx) => ({
     id: idx,
     emoji,
     flipped: false,
@@ -23,11 +28,19 @@ function createShuffledDeck() {
   return deck;
 }
 
+
 export default function App() {
-  const [cards, setCards] = useState(createShuffledDeck());
+  const [pairNumbers, setPairNumbers] = useState(DEFAULT_PAIRS);
+  const [cards, setCards] = useState(createShuffledDeck(DEFAULT_PAIRS));
   const [flippedIndices, setFlippedIndices] = useState([]); // indices of currently flipped cards
   const [isBusy, setIsBusy] = useState(false); // prevent rapid flipping
   const [won, setWon] = useState(false);
+
+
+  // Reset game when pairNumbers changes
+  useEffect(() => {
+    resetGame();
+  }, [pairNumbers]);
 
   useEffect(() => {
     if (flippedIndices.length === 2) {
@@ -79,16 +92,33 @@ export default function App() {
     setFlippedIndices((prev) => [...prev, index]);
   };
 
-  const handleReset = () => {
-    setCards(createShuffledDeck());
+  const resetGame = () => {
+    setCards(createShuffledDeck(pairNumbers));
     setFlippedIndices([]);
     setIsBusy(false);
     setWon(false);
-  };
+  }
+
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Memory Game</Text>
+      <View style={styles.inputRow}>
+        <Text style={styles.inputLabel}>Number of Pairs:</Text>
+        <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 6, marginRight: 8 }}>
+          <Picker
+            selectedValue={pairNumbers}
+            style={{ width: 100, height: 60 }}
+            onValueChange={(itemValue) => setPairNumbers(itemValue)}
+            mode="dropdown"
+          >
+            {Array.from({ length: MAX_PAIRS - MIN_PAIRS + 1 }, (_, i) => (
+              <Picker.Item key={i + MIN_PAIRS} label={(i + MIN_PAIRS).toString()} value={i + MIN_PAIRS} />
+            ))}
+          </Picker>
+        </View>
+        <Text style={styles.inputRange}>({MIN_PAIRS}-{MAX_PAIRS})</Text>
+      </View>
       <View style={styles.grid}>
         {cards.map((card, idx) => (
           <TouchableOpacity
@@ -107,11 +137,14 @@ export default function App() {
       {won && (
         <View style={styles.winContainer}>
           <Text style={styles.winText}>🎉 You won! 🎉</Text>
-          <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-            <Text style={styles.resetButtonText}>Play Again</Text>
-          </TouchableOpacity>
         </View>
       )}
+      <Button
+        onPress={resetGame}
+        title="Reset Game"
+        color="#841584"
+        accessibilityLabel="Reset Game"
+      />
       <StatusBar style="auto" />
     </View>
   );
@@ -130,9 +163,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
   },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+
+  inputRange: {
+    fontSize: 14,
+    color: '#888',
+  },
   grid: {
     width: 320,
-    height: 320,
+    minHeight: 320,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
@@ -165,16 +212,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
     color: '#388e3c',
-  },
-  resetButton: {
-    backgroundColor: '#388e3c',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  resetButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
 });
