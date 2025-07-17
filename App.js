@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, Button } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Button, Image } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import * as ImagePicker from 'expo-image-picker';
 
 const MIN_PAIRS = 2;
 const MAX_PAIRS = 12;
@@ -17,11 +18,17 @@ function shuffle(array) {
   return arr;
 }
 
-function createShuffledDeck(pairNumbers) {
-  const chosen = shuffle(EMOJIS).slice(0, pairNumbers);
-  const deck = shuffle([...chosen, ...chosen]).map((emoji, idx) => ({
+function createShuffledDeck(pairNumbers, images) {
+  let chosen;
+  if (images && images.length >= pairNumbers) {
+    chosen = images.slice(0, pairNumbers).map((img, idx) => ({ type: 'image', src: img.uri, id: `img-${idx}` }));
+  } else {
+    chosen = shuffle(EMOJIS).slice(0, pairNumbers).map((emoji, idx) => ({ type: 'emoji', src: emoji, id: `emoji-${idx}` }));
+  }
+  const deck = shuffle([...chosen, ...chosen]).map((item, idx) => ({
     id: idx,
-    emoji,
+    type: item.type,
+    src: item.src,
     flipped: false,
     matched: false,
   }));
@@ -35,18 +42,33 @@ export default function App() {
   const [flippedIndices, setFlippedIndices] = useState([]); // indices of currently flipped cards
   const [isBusy, setIsBusy] = useState(false); // prevent rapid flipping
   const [won, setWon] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [timerActive, setTimerActive] = useState(true);
+  const [userImages, setUserImages] = useState([]); // array of { uri }
 
 
   // Reset game when pairNumbers changes
   useEffect(() => {
     resetGame();
-  }, [pairNumbers]);
+  }, [pairNumbers, userImages]);
+
+  useEffect(() => {
+    let interval = null;
+    if (timerActive && !won) {
+      interval = setInterval(() => {
+        setSeconds((prev) => prev + 1);
+      }, 1000);
+    } else if (!timerActive || won) {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [timerActive, won]);
 
   useEffect(() => {
     if (flippedIndices.length === 2) {
       setIsBusy(true);
       const [firstIdx, secondIdx] = flippedIndices;
-      if (cards[firstIdx].emoji === cards[secondIdx].emoji) {
+      if (cards[firstIdx].src === cards[secondIdx].src) { // Compare src for image cards
         // Match found
         setTimeout(() => {
           setCards((prev) =>
@@ -79,6 +101,7 @@ export default function App() {
   useEffect(() => {
     if (cards.every((card) => card.matched)) {
       setWon(true);
+      setTimerActive(false);
     }
   }, [cards]);
 
@@ -93,12 +116,35 @@ export default function App() {
   };
 
   const resetGame = () => {
-    setCards(createShuffledDeck(pairNumbers));
+    setCards(createShuffledDeck(pairNumbers, userImages));
     setFlippedIndices([]);
     setIsBusy(false);
     setWon(false);
+    setSeconds(0);
+    setTimerActive(true);
   }
 
+  const pairsFound = cards.filter((card) => card.matched).length / 2;
+
+  const pickImages = async () => {
+    // Request permission first
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Sorry, we need media library permissions to make this work!');
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true, // Only available on web and iOS 14+
+      quality: 1,
+      selectionLimit: pairNumbers, // Limit to number of pairs
+    });
+
+    if (!result.canceled) {
+      setUserImages(result.assets.map(asset => ({ uri: asset.uri })));
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -119,6 +165,9 @@ export default function App() {
         </View>
         <Text style={styles.inputRange}>({MIN_PAIRS}-{MAX_PAIRS})</Text>
       </View>
+      <View style={styles.timerContainer}>
+        <Text style={styles.timerText}>Time: {seconds} s</Text>
+      </View>
       <View style={styles.grid}>
         {cards.map((card, idx) => (
           <TouchableOpacity
@@ -129,7 +178,11 @@ export default function App() {
             disabled={card.flipped || card.matched || isBusy || flippedIndices.length === 2}
           >
             <Text style={styles.cardText}>
-              {card.flipped || card.matched ? card.emoji : '❓'}
+              {card.flipped || card.matched
+                ? (card.type === 'emoji'
+                    ? card.src
+                    : <Image source={{ uri: card.src }} style={{ width: 40, height: 40 }} />)
+                : '❓'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -139,12 +192,23 @@ export default function App() {
           <Text style={styles.winText}>🎉 You won! 🎉</Text>
         </View>
       )}
-      <Button
-        onPress={resetGame}
-        title="Reset Game"
-        color="#841584"
-        accessibilityLabel="Reset Game"
-      />
+      <View style={styles.pairsFoundContainer}>
+        <Text style={styles.pairsFoundText}>Pairs found: {pairsFound}</Text>
+      </View>
+      <View style={styles.resetButtonContainer}>
+        <Button
+          onPress={resetGame}
+          title="Reset Game"
+          accessibilityLabel="Reset Game"
+        />
+      </View>
+      <View style={styles.chooseImagesButtonContainer}>
+        <Button
+          onPress={pickImages}
+          title="Choose Images"
+          accessibilityLabel="Choose Images"
+        />
+      </View>
       <StatusBar style="auto" />
     </View>
   );
@@ -212,5 +276,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
     color: '#388e3c',
+  },
+  pairsFoundContainer: {
+    marginTop: 30,
+    alignItems: 'center',
+  },
+  pairsFoundText: {
+    fontSize: 18,
+    color: '#888',
+  },
+  resetButtonContainer: {
+    marginTop: 20,
+    color: '#841584',
+  },
+  timerContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  timerText: {
+    fontSize: 18,
+    color: '#333',
+  },
+  chooseImagesButtonContainer: {
+    marginTop: 20,
+    color: '#841584',
   },
 });
