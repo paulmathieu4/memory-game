@@ -249,6 +249,7 @@ export default function App() {
               onPress={() => setShowConfiguration(true)}
               title="CARDS CONFIGURATION"
               accessibilityLabel="Cards Configuration"
+              color="#841584"
             />
           </View>
           <View style={styles.resetButtonContainer}>
