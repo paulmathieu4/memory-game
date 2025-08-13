@@ -3,11 +3,12 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TouchableOpacity, Button, Image } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
+import CardsConfiguration from './CardsConfiguration';
 
 const MIN_PAIRS = 2;
 const MAX_PAIRS = 12;
 const DEFAULT_PAIRS = 8;
-const EMOJIS = ['🐶', '🐱', '🦊', '🐻', '🐼', '🐸', '🦁', '🐵', '🐯', '🐨', '🦄', '🐙', '🐰', '🦉', '🐢', '🐞', '🦋', '🐳', '🦓'];
+const EMOJIS = ['🐶', '🐱', '🦊', '🐻', '🐼', '🐸', '🦁', '🐵', '🐯', '🐨', '🦄', '🐙'];
 
 function shuffle(array) {
   let arr = array.slice();
@@ -18,12 +19,14 @@ function shuffle(array) {
   return arr;
 }
 
-function createShuffledDeck(pairNumbers, images) {
+function createShuffledDeck(pairNumbers, images, pairsConfiguration) {
   let chosen;
   if (images && images.length >= pairNumbers) {
     chosen = images.slice(0, pairNumbers).map((img, idx) => ({ type: 'image', src: img.uri, id: `img-${idx}` }));
   } else {
-    chosen = shuffle(EMOJIS).slice(0, pairNumbers).map((emoji, idx) => ({ type: 'emoji', src: emoji, id: `emoji-${idx}` }));
+    // Use pairsConfiguration instead of hardcoded EMOJIS
+    const configuredEmojis = pairsConfiguration.slice(0, pairNumbers).map(item => item.content);
+    chosen = configuredEmojis.map((emoji, idx) => ({ type: 'emoji', src: emoji, id: `emoji-${idx}` }));
   }
   const deck = shuffle([...chosen, ...chosen]).map((item, idx) => ({
     id: idx,
@@ -36,21 +39,56 @@ function createShuffledDeck(pairNumbers, images) {
 }
 
 
+
+
 export default function App() {
   const [pairNumbers, setPairNumbers] = useState(DEFAULT_PAIRS);
-  const [cards, setCards] = useState(createShuffledDeck(DEFAULT_PAIRS));
+  const [pairsConfiguration, setPairsConfiguration] = useState([
+    { type: 'emoji', content: '🐶' },
+    { type: 'emoji', content: '🐱' },
+    { type: 'emoji', content: '🦊' },
+    { type: 'emoji', content: '🐻' },
+    { type: 'emoji', content: '🐼' },
+    { type: 'emoji', content: '🐸' },
+    { type: 'emoji', content: '🦁' },
+    { type: 'emoji', content: '🐵' },
+    { type: 'emoji', content: '🐯' },
+    { type: 'emoji', content: '🐨' },
+    { type: 'emoji', content: '🦄' },
+    { type: 'emoji', content: '🐙' },
+  ]);
+  const [cards, setCards] = useState(createShuffledDeck(DEFAULT_PAIRS, [], pairsConfiguration));
   const [flippedIndices, setFlippedIndices] = useState([]); // indices of currently flipped cards
   const [isBusy, setIsBusy] = useState(false); // prevent rapid flipping
   const [won, setWon] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [timerActive, setTimerActive] = useState(true);
   const [userImages, setUserImages] = useState([]); // array of { uri }
+  const [showConfiguration, setShowConfiguration] = useState(false);
+  
+  // Function to update pairsConfiguration
+  const updatePairsConfiguration = (newConfiguration) => {
+    setPairsConfiguration(newConfiguration);
+  };
 
+  // Example functions showing how to use pairsConfiguration
+  const getCurrentEmojis = () => {
+    return pairsConfiguration.slice(0, pairNumbers).map(item => item.content);
+  };
 
-  // Reset game when pairNumbers changes
+  const getEmojiCount = () => {
+    return pairsConfiguration.filter(item => item.type === 'emoji').length;
+  };
+
+  const hasDuplicateEmojis = () => {
+    const emojis = getCurrentEmojis();
+    return new Set(emojis).size !== emojis.length;
+  };
+
+  // Reset game when pairNumbers, userImages or pairsConfiguration changes
   useEffect(() => {
     resetGame();
-  }, [pairNumbers, userImages]);
+  }, [pairNumbers, userImages, pairsConfiguration]);
 
   useEffect(() => {
     let interval = null;
@@ -116,7 +154,7 @@ export default function App() {
   };
 
   const resetGame = () => {
-    setCards(createShuffledDeck(pairNumbers, userImages));
+    setCards(createShuffledDeck(pairNumbers, userImages, pairsConfiguration));
     setFlippedIndices([]);
     setIsBusy(false);
     setWon(false);
@@ -148,67 +186,94 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Memory Game</Text>
-      <View style={styles.inputRow}>
-        <Text style={styles.inputLabel}>Number of Pairs:</Text>
-        <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 6, marginRight: 8 }}>
-          <Picker
-            selectedValue={pairNumbers}
-            style={{ width: 100, height: 60 }}
-            onValueChange={(itemValue) => setPairNumbers(itemValue)}
-            mode="dropdown"
-          >
-            {Array.from({ length: MAX_PAIRS - MIN_PAIRS + 1 }, (_, i) => (
-              <Picker.Item key={i + MIN_PAIRS} label={(i + MIN_PAIRS).toString()} value={i + MIN_PAIRS} />
+      {showConfiguration ? (
+        <CardsConfiguration 
+          onBack={() => setShowConfiguration(false)}
+          pairsConfiguration={pairsConfiguration}
+          onUpdateConfiguration={updatePairsConfiguration}
+        />
+      ) : (
+        <>
+          <Text style={styles.title}>Memory Game</Text>
+          <View style={styles.inputRow}>
+            <Text style={styles.inputLabel}>Number of Pairs:</Text>
+            <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 6, marginRight: 8 }}>
+              <Picker
+                selectedValue={pairNumbers}
+                style={{ width: 100, height: 60 }}
+                onValueChange={(itemValue) => setPairNumbers(itemValue)}
+                mode="dropdown"
+              >
+                {Array.from({ length: MAX_PAIRS - MIN_PAIRS + 1 }, (_, i) => (
+                  <Picker.Item key={i + MIN_PAIRS} label={(i + MIN_PAIRS).toString()} value={i + MIN_PAIRS} />
+                ))}
+              </Picker>
+            </View>
+            <Text style={styles.inputRange}>({MIN_PAIRS}-{MAX_PAIRS})</Text>
+          </View>
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerText}>Time: {seconds} s</Text>
+          </View>
+          <View style={styles.grid}>
+            {cards.map((card, idx) => (
+              <TouchableOpacity
+                key={card.id}
+                style={[styles.card, card.matched && styles.cardMatched]}
+                onPress={() => handleCardPress(idx)}
+                activeOpacity={card.flipped || card.matched ? 1 : 0.7}
+                disabled={card.flipped || card.matched || isBusy || flippedIndices.length === 2}
+              >
+                <Text style={styles.cardText}>
+                  {card.flipped || card.matched
+                    ? (card.type === 'emoji'
+                        ? card.src
+                        : <Image source={{ uri: card.src }} style={{ width: 40, height: 40 }} />)
+                    : '❓'}
+                </Text>
+              </TouchableOpacity>
             ))}
-          </Picker>
-        </View>
-        <Text style={styles.inputRange}>({MIN_PAIRS}-{MAX_PAIRS})</Text>
-      </View>
-      <View style={styles.timerContainer}>
-        <Text style={styles.timerText}>Time: {seconds} s</Text>
-      </View>
-      <View style={styles.grid}>
-        {cards.map((card, idx) => (
-          <TouchableOpacity
-            key={card.id}
-            style={[styles.card, card.matched && styles.cardMatched]}
-            onPress={() => handleCardPress(idx)}
-            activeOpacity={card.flipped || card.matched ? 1 : 0.7}
-            disabled={card.flipped || card.matched || isBusy || flippedIndices.length === 2}
-          >
-            <Text style={styles.cardText}>
-              {card.flipped || card.matched
-                ? (card.type === 'emoji'
-                    ? card.src
-                    : <Image source={{ uri: card.src }} style={{ width: 40, height: 40 }} />)
-                : '❓'}
+          </View>
+          {won && (
+            <View style={styles.winContainer}>
+              <Text style={styles.winText}>🎉 You won! 🎉</Text>
+            </View>
+          )}
+          <View style={styles.pairsFoundContainer}>
+            <Text style={styles.pairsFoundText}>Pairs found: {pairsFound}</Text>
+            <Text style={styles.configInfoText}>
+              Current config: {pairsConfiguration.slice(0, pairNumbers).map(item => item.content).join(', ')}
             </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {won && (
-        <View style={styles.winContainer}>
-          <Text style={styles.winText}>🎉 You won! 🎉</Text>
-        </View>
+          </View>
+          <View style={styles.cardsConfigButtonContainer}>
+            <Button
+              onPress={() => setShowConfiguration(true)}
+              title="CARDS CONFIGURATION"
+              accessibilityLabel="Cards Configuration"
+            />
+          </View>
+          <View style={styles.resetButtonContainer}>
+            <Button
+              onPress={resetGame}
+              title="Reset Game"
+              accessibilityLabel="Reset Game"
+            />
+          </View>
+          <View style={styles.chooseImagesButtonContainer}>
+            <Button
+              onPress={pickImages}
+              title="Choose Images"
+              accessibilityLabel="Choose Images"
+            />
+          </View>
+          <View style={styles.debugButtonContainer}>
+            <Button
+              onPress={() => alert(`Current emojis: ${getCurrentEmojis().join(', ')}\nHas duplicates: ${hasDuplicateEmojis()}`)}
+              title="Debug Config"
+              accessibilityLabel="Debug Configuration"
+            />
+          </View>
+        </>
       )}
-      <View style={styles.pairsFoundContainer}>
-        <Text style={styles.pairsFoundText}>Pairs found: {pairsFound}</Text>
-      </View>
-      <View style={styles.resetButtonContainer}>
-        <Button
-          onPress={resetGame}
-          title="Reset Game"
-          accessibilityLabel="Reset Game"
-        />
-      </View>
-      <View style={styles.chooseImagesButtonContainer}>
-        <Button
-          onPress={pickImages}
-          title="Choose Images"
-          accessibilityLabel="Choose Images"
-        />
-      </View>
       <StatusBar style="auto" />
     </View>
   );
@@ -222,6 +287,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 40,
   },
+
   title: {
     fontSize: 32,
     fontWeight: 'bold',
@@ -285,6 +351,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#888',
   },
+  configInfoText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 5,
+    textAlign: 'center',
+  },
+  cardsConfigButtonContainer: {
+    marginTop: 20,
+    color: '#841584',
+  },
   resetButtonContainer: {
     marginTop: 20,
     color: '#841584',
@@ -298,6 +374,10 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   chooseImagesButtonContainer: {
+    marginTop: 20,
+    color: '#841584',
+  },
+  debugButtonContainer: {
     marginTop: 20,
     color: '#841584',
   },
