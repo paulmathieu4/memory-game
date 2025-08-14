@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, Button, Image } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Button, Image, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import CardsConfiguration from './CardsConfiguration';
@@ -20,14 +20,43 @@ function shuffle(array) {
 }
 
 function createShuffledDeck(pairNumbers, images, pairsConfiguration) {
-  let chosen;
-  if (images && images.length >= pairNumbers) {
-    chosen = images.slice(0, pairNumbers).map((img, idx) => ({ type: 'image', src: img.uri, id: `img-${idx}` }));
-  } else {
-    // Use pairsConfiguration instead of hardcoded EMOJIS
-    const configuredEmojis = pairsConfiguration.slice(0, pairNumbers).map(item => item.content);
-    chosen = configuredEmojis.map((emoji, idx) => ({ type: 'emoji', src: emoji, id: `emoji-${idx}` }));
+  let chosen = [];
+  
+  // Use pairsConfiguration for the first priority
+  const configuredPairs = pairsConfiguration.slice(0, pairNumbers);
+  
+  for (let i = 0; i < configuredPairs.length; i++) {
+    const pair = configuredPairs[i];
+    if (pair.type === 'emoji' && pair.content) {
+      chosen.push({ type: 'emoji', src: pair.content, id: `emoji-${i}` });
+    } else if (pair.type === 'image' && pair.content) {
+      chosen.push({ type: 'image', src: pair.content, id: `image-${i}` });
+    }
   }
+  
+  // If we don't have enough configured pairs, fall back to user images or default emojis
+  if (chosen.length < pairNumbers) {
+    const remainingNeeded = pairNumbers - chosen.length;
+    
+    if (images && images.length >= remainingNeeded) {
+      const imagePairs = images.slice(0, remainingNeeded).map((img, idx) => ({ 
+        type: 'image', 
+        src: img.uri, 
+        id: `fallback-img-${idx}` 
+      }));
+      chosen = [...chosen, ...imagePairs];
+    } else {
+      // Use default emojis for remaining pairs
+      const defaultEmojis = EMOJIS.slice(0, remainingNeeded);
+      const emojiPairs = defaultEmojis.map((emoji, idx) => ({ 
+        type: 'emoji', 
+        src: emoji, 
+        id: `fallback-emoji-${idx}` 
+      }));
+      chosen = [...chosen, ...emojiPairs];
+    }
+  }
+  
   const deck = shuffle([...chosen, ...chosen]).map((item, idx) => ({
     id: idx,
     type: item.type,
@@ -43,7 +72,7 @@ function createShuffledDeck(pairNumbers, images, pairsConfiguration) {
 
 export default function App() {
   const [pairNumbers, setPairNumbers] = useState(DEFAULT_PAIRS);
-  const [pairsConfiguration, setPairsConfiguration] = useState([
+  const initialPairsConfiguration = [
     { type: 'emoji', content: '🐶' },
     { type: 'emoji', content: '🐱' },
     { type: 'emoji', content: '🦊' },
@@ -56,7 +85,9 @@ export default function App() {
     { type: 'emoji', content: '🐨' },
     { type: 'emoji', content: '🦄' },
     { type: 'emoji', content: '🐙' },
-  ]);
+  ];
+  
+  const [pairsConfiguration, setPairsConfiguration] = useState(initialPairsConfiguration);
   const [cards, setCards] = useState(createShuffledDeck(DEFAULT_PAIRS, [], pairsConfiguration));
   const [flippedIndices, setFlippedIndices] = useState([]); // indices of currently flipped cards
   const [isBusy, setIsBusy] = useState(false); // prevent rapid flipping
@@ -191,9 +222,10 @@ export default function App() {
           onBack={() => setShowConfiguration(false)}
           pairsConfiguration={pairsConfiguration}
           onUpdateConfiguration={updatePairsConfiguration}
+          initialConfiguration={initialPairsConfiguration}
         />
       ) : (
-        <>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
           <Text style={styles.title}>Memory Game</Text>
           <View style={styles.inputRow}>
             <Text style={styles.inputLabel}>Number of Pairs:</Text>
@@ -223,13 +255,15 @@ export default function App() {
                 activeOpacity={card.flipped || card.matched ? 1 : 0.7}
                 disabled={card.flipped || card.matched || isBusy || flippedIndices.length === 2}
               >
-                <Text style={styles.cardText}>
-                  {card.flipped || card.matched
-                    ? (card.type === 'emoji'
-                        ? card.src
-                        : <Image source={{ uri: card.src }} style={{ width: 40, height: 40 }} />)
-                    : '❓'}
-                </Text>
+                {card.flipped || card.matched ? (
+                  card.type === 'emoji' ? (
+                    <Text style={styles.cardText}>{card.src}</Text>
+                  ) : (
+                    <Image source={{ uri: card.src }} style={styles.cardImage} />
+                  )
+                ) : (
+                  <Text style={styles.cardText}>❓</Text>
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -240,9 +274,6 @@ export default function App() {
           )}
           <View style={styles.pairsFoundContainer}>
             <Text style={styles.pairsFoundText}>Pairs found: {pairsFound}</Text>
-            <Text style={styles.configInfoText}>
-              Current config: {pairsConfiguration.slice(0, pairNumbers).map(item => item.content).join(', ')}
-            </Text>
           </View>
           <View style={styles.cardsConfigButtonContainer}>
             <Button
@@ -268,12 +299,17 @@ export default function App() {
           </View>
           <View style={styles.debugButtonContainer}>
             <Button
-              onPress={() => alert(`Current emojis: ${getCurrentEmojis().join(', ')}\nHas duplicates: ${hasDuplicateEmojis()}`)}
+              onPress={() => {
+                const configInfo = pairsConfiguration.slice(0, pairNumbers).map((item, idx) => 
+                  `${idx + 1}: ${item.type} - ${item.type === 'emoji' ? item.content : (item.content ? 'Image selected' : 'No image')}`
+                ).join('\n');
+                alert(`Configuration:\n${configInfo}`);
+              }}
               title="Debug Config"
               accessibilityLabel="Debug Configuration"
             />
           </View>
-        </>
+        </ScrollView>
       )}
       <StatusBar style="auto" />
     </View>
@@ -284,9 +320,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingTop: 40,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 20, // Add some padding at the bottom for the button
   },
 
   title: {
@@ -330,6 +370,11 @@ const styles = StyleSheet.create({
   },
   cardText: {
     fontSize: 36,
+  },
+  cardImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
   },
   cardMatched: {
     backgroundColor: '#b2fab4',
