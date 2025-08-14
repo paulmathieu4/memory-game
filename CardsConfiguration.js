@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Button, ScrollView, Platform, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, Text, View, Button, ScrollView, Platform, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function CardsConfiguration({ onBack, pairsConfiguration, onUpdateConfiguration, initialConfiguration }) {
+  const screenWidth = Dimensions.get('window').width;
+  const isSmallScreen = screenWidth < 600; // Hide pair number column on screens smaller than 600px
+  
   const availableEmojis = [
     '🐶', '🐱', '🦊', '🐻', '🐼', '🐸', '🦁', '🐵', '🐯', '🐨', '🦄', '🐙',
     '🐷', '🐮', '🐷', '🐸', '🐙', '🦋', '🐞', '🐜', '🦗', '🕷️', '🦂', '🐢',
@@ -128,7 +131,7 @@ export default function CardsConfiguration({ onBack, pairsConfiguration, onUpdat
       
       <View style={styles.tableWrapper}>
         <View style={styles.tableHeader}>
-          <Text style={styles.headerCell}>Pair number</Text>
+          {!isSmallScreen && <Text style={styles.headerCell}>Pair number</Text>}
           <Text style={styles.headerCell}>Type</Text>
           <Text style={styles.headerCell}>Content</Text>
           <Text style={styles.headerCell}>Actions</Text>
@@ -141,7 +144,7 @@ export default function CardsConfiguration({ onBack, pairsConfiguration, onUpdat
         >
           {pairsConfiguration.map((item, index) => (
             <View key={index} style={styles.tableRow}>
-              <Text style={styles.cell}>{index + 1}</Text>
+              {!isSmallScreen && <Text style={styles.cell}>{index + 1}</Text>}
               <View style={styles.typePickerContainer}>
                 <Picker
                   selectedValue={item.type}
