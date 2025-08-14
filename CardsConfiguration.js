@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Button, ScrollView, Platform, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, Button, ScrollView, Platform, TouchableOpacity, Image, Dimensions, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function CardsConfiguration({ onBack, pairsConfiguration, onUpdateConfiguration, initialConfiguration }) {
   const screenWidth = Dimensions.get('window').width;
   const isSmallScreen = screenWidth < 600; // Hide pair number column on screens smaller than 600px
-  
+
   const availableEmojis = [
     '🐶', '🐱', '🦊', '🐻', '🐼', '🐸', '🦁', '🐵', '🐯', '🐨', '🦄', '🐙',
     '🐷', '🐮', '🐷', '🐸', '🐙', '🦋', '🐞', '🐜', '🦗', '🕷️', '🦂', '🐢',
@@ -38,26 +38,90 @@ export default function CardsConfiguration({ onBack, pairsConfiguration, onUpdat
   };
 
   const pickImage = async (index) => {
-    // Request permission first
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      alert('Sorry, we need media library permissions to make this work!');
+    // Request permissions first
+    const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (libraryPermission.status !== 'granted') {
+      alert('Sorry, we need library permissions to make this work!');
       return;
     }
 
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: false,
-      quality: 1,
-    });
+    let result;
 
-    if (!result.canceled) {
+    if (Platform.OS === 'web') {
+      result = await selectImageFromDisk(libraryPermission);
+    } else {
+      // Request permissions first
+      const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (cameraPermission.status !== 'granted') {
+        alert('Sorry, we need camera permissions to make this work!');
+        return;
+      }
+
+      // Show action sheet to choose between camera and photo library
+      const options = ['Cancel', 'Take Photo', 'Choose from Library'];
+      const cancelButtonIndex = 0;
+      const cameraButtonIndex = 1;
+      const libraryButtonIndex = 2;
+
+      // For React Native, we'll use a simple alert with options
+      // In a real app, you might want to use a proper action sheet library
+      const choice = await new Promise((resolve) => {
+        Alert.alert(
+          'Select Image',
+          'Choose how you want to add an image',
+          [
+            { text: 'Cancel', onPress: () => resolve('cancel'), style: 'cancel' },
+            { text: 'Take Photo', onPress: () => resolve('camera') },
+            { text: 'Choose from Library', onPress: () => resolve('library') }
+          ]
+        );
+      });
+
+      if (choice === 'cancel') return;
+
+    
+
+      if (choice === 'camera') {
+        if (cameraPermission.status !== 'granted') {
+          alert('Camera permission is required to take photos');
+          return;
+        }
+
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 1,
+          allowsEditing: true,
+          aspect: [1, 1], // Square aspect ratio for better card display
+        });
+      } else if (choice === 'library') {
+        result = await selectImageFromDisk(libraryPermission);
+      }
+    }
+
+    if (result && !result.canceled) {
       const imageUri = result.assets[0].uri;
       const updatedConfiguration = [...pairsConfiguration];
       updatedConfiguration[index].content = imageUri;
       onUpdateConfiguration(updatedConfiguration);
     }
   };
+
+  const selectImageFromDisk = async (libraryPermission) => {
+    if (libraryPermission.status !== 'granted') {
+      alert('Media library permission is required to select photos');
+      return;
+    }
+
+    return await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: false,
+      quality: 1,
+      allowsEditing: true,
+      aspect: [1, 1], // Square aspect ratio for better card display
+    });
+  }
 
   const movePairUp = (index) => {
     if (index > 0) {
@@ -128,7 +192,7 @@ export default function CardsConfiguration({ onBack, pairsConfiguration, onUpdat
   return (
     <View style={styles.configContainer}>
       <Text style={styles.configTitle}>CARDS CONFIGURATION</Text>
-      
+
       <View style={styles.tableWrapper}>
         <View style={styles.tableHeader}>
           {!isSmallScreen && <Text style={styles.headerCell}>Pair number</Text>}
@@ -136,8 +200,8 @@ export default function CardsConfiguration({ onBack, pairsConfiguration, onUpdat
           <Text style={styles.headerCell}>Content</Text>
           <Text style={styles.headerCell}>Actions</Text>
         </View>
-        
-        <ScrollView 
+
+        <ScrollView
           style={styles.tableScrollView}
           contentContainerStyle={styles.tableContentContainer}
           showsVerticalScrollIndicator={true}
@@ -177,7 +241,7 @@ export default function CardsConfiguration({ onBack, pairsConfiguration, onUpdat
           ))}
         </ScrollView>
       </View>
-      
+
       <View style={styles.resetButtonContainer}>
         <Button
           onPress={resetConfiguration}
@@ -186,7 +250,7 @@ export default function CardsConfiguration({ onBack, pairsConfiguration, onUpdat
           color="#FF3B30"
         />
       </View>
-      
+
       <View style={styles.backButtonContainer}>
         <Button
           onPress={onBack}
