@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, Button, Image, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Button, Image, ScrollView, Platform, SafeAreaView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
 import CardsConfiguration from './CardsConfiguration';
 
 const MIN_PAIRS = 2;
@@ -28,9 +29,23 @@ function createShuffledDeck(pairNumbers, images, pairsConfiguration) {
   for (let i = 0; i < configuredPairs.length; i++) {
     const pair = configuredPairs[i];
     if (pair.type === 'emoji' && pair.content) {
-      chosen.push({ type: 'emoji', src: pair.content, id: `emoji-${i}` });
+      chosen.push({ 
+        type: 'emoji', 
+        src: pair.content, 
+        id: `emoji-${i}`
+      });
     } else if (pair.type === 'image' && pair.content) {
-      chosen.push({ type: 'image', src: pair.content, id: `image-${i}` });
+      chosen.push({ 
+        type: 'image', 
+        src: pair.content, 
+        id: `image-${i}`
+      });
+    } else if (pair.type === 'sound' && pair.content) {
+      chosen.push({ 
+        type: 'sound', 
+        src: pair.content, 
+        id: `sound-${i}`
+      });
     }
   }
   
@@ -42,7 +57,7 @@ function createShuffledDeck(pairNumbers, images, pairsConfiguration) {
       const imagePairs = images.slice(0, remainingNeeded).map((img, idx) => ({ 
         type: 'image', 
         src: img.uri, 
-        id: `fallback-img-${idx}` 
+        id: `fallback-img-${idx}`
       }));
       chosen = [...chosen, ...imagePairs];
     } else {
@@ -51,7 +66,7 @@ function createShuffledDeck(pairNumbers, images, pairsConfiguration) {
       const emojiPairs = defaultEmojis.map((emoji, idx) => ({ 
         type: 'emoji', 
         src: emoji, 
-        id: `fallback-emoji-${idx}` 
+        id: `fallback-emoji-${idx}`
       }));
       chosen = [...chosen, ...emojiPairs];
     }
@@ -66,9 +81,6 @@ function createShuffledDeck(pairNumbers, images, pairsConfiguration) {
   }));
   return deck;
 }
-
-
-
 
 export default function App() {
   const [pairNumbers, setPairNumbers] = useState(DEFAULT_PAIRS);
@@ -96,10 +108,32 @@ export default function App() {
   const [timerActive, setTimerActive] = useState(true);
   const [userImages, setUserImages] = useState([]); // array of { uri }
   const [showConfiguration, setShowConfiguration] = useState(false);
+  const [sound, setSound] = useState(null);
   
   // Function to update pairsConfiguration
   const updatePairsConfiguration = (newConfiguration) => {
     setPairsConfiguration(newConfiguration);
+  };
+
+  // Function to play sound
+  const playSound = async (soundData) => {
+    if (!soundData || !soundData.uri) return;
+
+    try {
+      const { sound } = await Audio.Sound.createAsync({ uri: soundData.uri });
+      setSound(sound);
+      await sound.playAsync();
+      
+      // Unload sound after playing
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          sound.unloadAsync();
+          setSound(null);
+        }
+      });
+    } catch (err) {
+      console.error('Failed to play sound', err);
+    }
   };
 
   // Example functions showing how to use pairsConfiguration
@@ -176,6 +210,12 @@ export default function App() {
 
   const handleCardPress = (index) => {
     if (isBusy || cards[index].flipped || cards[index].matched || flippedIndices.length === 2) return;
+    
+    // Play sound if it's a sound card
+    if (cards[index].type === 'sound' && cards[index].src) {
+      playSound(cards[index].src);
+    }
+    
     setCards((prev) =>
       prev.map((card, i) =>
         i === index ? { ...card, flipped: true } : card
@@ -216,7 +256,7 @@ export default function App() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {showConfiguration ? (
         <CardsConfiguration 
           onBack={() => setShowConfiguration(false)}
@@ -258,8 +298,12 @@ export default function App() {
                 {card.flipped || card.matched ? (
                   card.type === 'emoji' ? (
                     <Text style={styles.cardText}>{card.src}</Text>
-                  ) : (
+                  ) : card.type === 'image' ? (
                     <Image source={{ uri: card.src }} style={styles.cardImage} />
+                  ) : card.type === 'sound' ? (
+                    <Text style={styles.soundIcon}>🔊</Text>
+                  ) : (
+                    <Text style={styles.cardText}>❓</Text>
                   )
                 ) : (
                   <Text style={styles.cardText}>❓</Text>
@@ -301,7 +345,7 @@ export default function App() {
             <Button
               onPress={() => {
                 const configInfo = pairsConfiguration.slice(0, pairNumbers).map((item, idx) => 
-                  `${idx + 1}: ${item.type} - ${item.type === 'emoji' ? item.content : (item.content ? 'Image selected' : 'No image')}`
+                  `${idx + 1}: ${item.type} - ${item.type === 'emoji' ? item.content : (item.content ? 'Content selected' : 'No content')}`
                 ).join('\n');
                 alert(`Configuration:\n${configInfo}`);
               }}
@@ -312,7 +356,7 @@ export default function App() {
         </ScrollView>
       )}
       <StatusBar style="auto" />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -320,13 +364,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    paddingTop: 40,
+    paddingTop: Platform.OS === 'android' ? 0 : 40,
+    paddingBottom: Platform.OS === 'android' ? 20 : 0, // Add bottom padding for Android navigation buttons
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 20, // Add some padding at the bottom for the button
+    paddingBottom: Platform.OS === 'android' ? 40 : 20, // Extra padding for Android
   },
 
   title: {
@@ -426,5 +471,15 @@ const styles = StyleSheet.create({
   debugButtonContainer: {
     marginTop: 20,
     color: '#841584',
+  },
+  soundIndicator: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    fontSize: 16,
+    color: '#007AFF',
+  },
+  soundIcon: {
+    fontSize: 36,
   },
 });

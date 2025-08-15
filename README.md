@@ -1,13 +1,37 @@
 # Memory Game
 
-A simple memory game built with [Expo](https://expo.dev/) and React Native. Flip cards to find matching emoji pairs!
+A feature-rich memory game built with [Expo](https://expo.dev/) and React Native. Flip cards to find matching pairs with customizable content types!
 
 ## Features
 
-- 4x4 grid of cards (8 pairs)
-- Fun emoji graphics
-- Tracks matches and shows a win message
-- Play again button to restart
+- **Flexible Grid**: 2-12 pairs of cards (configurable)
+- **Three Content Types**: 
+  - **Emoji cards** with extensive emoji library (100+ emojis)
+  - **Image cards** from camera or photo library with square aspect ratio editing
+  - **Sound cards** with custom recordings or imported audio files
+- **Advanced Configuration**: 
+  - Cards Configuration panel for detailed setup
+  - Reorder pairs with up/down arrow controls
+  - Preview and test sounds before playing
+  - Reset configuration to defaults
+  - Responsive design that adapts to screen size
+- **Game Features**:
+  - Timer tracking with automatic stop on win
+  - Match counter showing pairs found
+  - Win detection with celebration message
+  - Automatic sound playback when sound cards are flipped
+  - Busy state prevention during card animations
+  - Debug configuration panel for troubleshooting
+- **Image Management**:
+  - Choose multiple images from photo library
+  - Take photos with camera
+  - Image editing with square aspect ratio
+  - Fallback to default emojis when insufficient images
+- **Sound Management**:
+  - Record custom audio with high quality settings
+  - Import audio files from device
+  - Playback controls with automatic cleanup
+  - Visual indicators for recorded vs imported sounds
 
 ## Getting Started
 
@@ -42,19 +66,27 @@ A simple memory game built with [Expo](https://expo.dev/) and React Native. Flip
 
 ## Project Structure
 
-- `App.js` — Main application file
+- `App.js` — Main application file with game logic
+- `CardsConfiguration.js` — Configuration panel for customizing pairs
 - `assets/` — App icons and images
 - `package.json` — Project dependencies and scripts
 
-## Customization
+## Dependencies
 
-- Change the emojis in `App.js` to use your favorites!
-- Add features like a move counter, timer, or sound effects.
+- `expo-av` — Audio recording and playback with high-quality settings
+- `expo-document-picker` — File selection for sounds and audio files
+- `expo-image-picker` — Image selection, camera access, and photo editing
+- `@react-native-picker/picker` — UI picker components for configuration
+- `expo-status-bar` — Status bar management
+- `react-native-web` — Web platform support
 
-## Learn More
+## Permissions
 
-- [Expo Documentation](https://docs.expo.dev/)
-- [React Native Documentation](https://reactnative.dev/)
+The app requests the following permissions:
+- **Camera**: For taking photos
+- **Photo Library**: For selecting images
+- **Microphone**: For recording sounds
+- **File Access**: For importing audio files
 
 ## License
 
